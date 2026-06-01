@@ -57,40 +57,86 @@ namespace API_PROJECT_BEAUTY.Controllers
 
             }
         }
-        [HttpGet (Name = "ObtenerProductos")]
-        public async Task<ActionResult<IEnumerable<ProductoResponseDto>>> ObtenerProductos() // Define un método asincrónico que devuelve una lista de productos en formato DTO para ser consumidos por el cliente.
-        {
-             using var transaction = await _context.Database.BeginTransactionAsync();
+            [HttpGet (Name = "ObtenerProductos")]
+            public async Task<ActionResult<IEnumerable<ProductoResponseDto>>> ObtenerProductos() // Define un método asincrónico que devuelve una lista de productos en formato DTO para ser consumidos por el cliente.
+            {
 
-            try {
+                try {
 
-                // Consultamos la tabla productos
-                var listaProductos = await _context.Productos
-                // Traemos la relacion con la tabla categoria producto para obtener el nombre de la categoria
-                .Include(p => p.IdCategoriaProductoNavigation) //esto trae los datos relacionados de la tabla categoria producto, es decir, el nombre de la categoria a la que pertenece cada producto.
-                .Select(p => new ProductoResponseDto
+                    // Consultamos la tabla productos
+                    var listaProductos = await _context.Productos
+                    // Traemos la relacion con la tabla categoria producto para obtener el nombre de la categoria
+                    .Include(p => p.IdCategoriaProductoNavigation) //esto trae los datos relacionados de la tabla categoria producto, es decir, el nombre de la categoria a la que pertenece cada producto.
+                    .Select(p => new ProductoResponseDto
+                    {
+                        IdProducto = p.IdProducto,
+                        Nombre = p.Nombre,
+                        Descripcion = p.Descripcion,
+                        Precio = p.Precio,
+                        Stock = p.Stock,
+                        Medida = p.Medida,
+                        CategoriaNombre = p.IdCategoriaProductoNavigation.NombreCategoria,
+
+                    })
+                    .ToListAsync(); // Ejecuta la consulta de forma asíncrona y devuelve una lista de productos en formato DTO.
+
+                    return Ok(listaProductos);
+                }
+                catch (Exception ex)
                 {
-                    IdProducto = p.IdProducto,
-                    Nombre = p.Nombre,
-                    Descripcion = p.Descripcion,
-                    Precio = p.Precio,
-                    Stock = p.Stock,
-                    Medida = p.Medida,
-                    CategoriaNombre = p.IdCategoriaProductoNavigation.NombreCategoria,
+                    //si algo falla, devolveremos un error 500 con el mensaje de error.
+                    return StatusCode(500, new { mensaje = "Error al obtener los productos.", error = ex.Message });
 
-                })
-                .ToListAsync(); // Ejecuta la consulta de forma asíncrona y devuelve una lista de productos en formato DTO.
 
-                return Ok(listaProductos);
+                }
+
             }
+        [HttpPut (Name = "ActualizarProducto")]
+
+        public async Task<ActionResult> ActualizarProducto (int idProducto, ProductoUpdateDto data) 
+        {
+
+            using var transaction = await _context.Database.BeginTransactionAsync();
+
+                try
+                {
+                    // Busca el producto por su ID en la base de datos utilizando el método FindAsync. Si el producto no existe, devuelve una respuesta de error 404 (No Encontrado) con un mensaje.
+                    var ProductoExistente = await _context.Productos.FindAsync(idProducto);
+
+                    
+                        if (ProductoExistente == null)
+                        {
+                            return NotFound(new { mensaje = "Producto no encontrado." }); // Si el producto no existe, devuelve una respuesta de error 404 (No Encontrado) con un mensaje.
+                        }
+
+
+                // Si el producto existe, actualiza sus propiedades con los valores proporcionados en el DTO. Si alguna propiedad del DTO es nula, se mantiene el valor existente del producto.
+                     ProductoExistente.Nombre = data.Nombre ?? ProductoExistente.Nombre;
+                     ProductoExistente.Descripcion = data.Descripcion ?? ProductoExistente.Descripcion;
+                     ProductoExistente.Precio = data.Precio ?? ProductoExistente.Precio;
+                     ProductoExistente.Stock = data.Stock ?? ProductoExistente.Stock;
+                     ProductoExistente.Medida = data.Medida ?? ProductoExistente.Medida;
+                     ProductoExistente.Estado = data.Estado ?? ProductoExistente.Estado;
+
+                      await _context.SaveChangesAsync(); // Guarda los cambios en la bd de forma asincronica
+
+                      await transaction.CommitAsync();// Si todo sale bien, se confirma la transacción.
+
+                return StatusCode(201, new { mensaje = "¡Producto Actualizado!", id = ProductoExistente.IdProducto }); // Si la actualización es exitosa, devuelve una respuesta con el código de estado 201 (Creado) y un mensaje indicando que el producto fue actualizado exitosamente.
+
+                    
+                }
+
             catch (Exception ex)
             {
+
                 //si algo falla, devolveremos un error 500 con el mensaje de error.
-                return StatusCode(500, new { mensaje = "Error al obtener los productos.", error = ex.Message });
-
-
+                return StatusCode(500, new { mensaje = "Error al actualizar el producto.", error = ex.Message });
             }
 
+
         }
+
+            
     }
 }

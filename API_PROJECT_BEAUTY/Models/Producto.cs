@@ -19,6 +19,8 @@ public partial class Producto
 
     public string Medida { get; set; } = null!;
 
+    public EstadoProducto Estado { get; set; }
+
     public virtual ICollection<DetalleVentum> DetalleVenta { get; set; } = new List<DetalleVentum>();
 
     public virtual CategoriaProducto IdCategoriaProductoNavigation { get; set; } = null!;

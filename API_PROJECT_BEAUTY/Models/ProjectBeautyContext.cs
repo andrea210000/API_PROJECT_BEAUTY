@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using Pomelo.EntityFrameworkCore.MySql.Scaffolding.Internal;
 
+
 namespace API_PROJECT_BEAUTY.Models;
 
 public partial class ProjectBeautyContext : DbContext
@@ -43,10 +44,12 @@ public partial class ProjectBeautyContext : DbContext
     public virtual DbSet<Servicio> Servicios { get; set; }
 
     public virtual DbSet<TipoIdentificacion> TipoIdentificacions { get; set; }
+    public virtual DbSet<UsuarioToken> Usuario_Token { get; set; }
 
     public virtual DbSet<Usuario> Usuarios { get; set; }
 
     public virtual DbSet<Ventum> Venta { get; set; }
+    public object Usuario { get; internal set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
 #warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see https://go.microsoft.com/fwlink/?LinkId=723263.
@@ -318,6 +321,13 @@ public partial class ProjectBeautyContext : DbContext
 
         modelBuilder.Entity<Producto>(entity =>
         {
+            //Aqui agregaremos la configuracion de la logica de Stock en Producto
+            entity.Property(e => e.Stock).HasColumnName("STOCK"); //Primero seleccionamos la propiedad stock que esta en producto. Ademas, mapea la columna STOCK en la bd
+            //--Aqui agregamos la config de Estado--//
+            entity.Property(e => e.Estado)// Seleccionamos el Enum para EstadoProducto
+                .HasColumnName("Estado")// Se crea la columna ESTADO en producto en la bd
+                .HasConversion<string>();//Le indica que antes de guardarlo en la bd,lo guarda en forma de string.
+
             entity.HasKey(e => e.IdProducto).HasName("PRIMARY");
 
             entity.ToTable("producto");
