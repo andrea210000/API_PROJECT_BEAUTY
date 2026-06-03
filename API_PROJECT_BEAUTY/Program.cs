@@ -10,9 +10,10 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AngularClient", policy =>
     {
-        policy.WithOrigins("http://localhost:4200") // La URL de tu frontend
-              .AllowAnyHeader()
-              .AllowAnyMethod();
+        policy.AllowAnyOrigin()//permite que lleguen peticiones http de cualquier origen, pero pues con nuestra cookie se comprueba ese http para hacerlo o no
+       .AllowAnyHeader()
+      .AllowAnyMethod();
+
     });
 });
 
