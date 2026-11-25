@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace API_PROJECT_BEAUTY.Controllers
 {
@@ -102,7 +103,7 @@ namespace API_PROJECT_BEAUTY.Controllers
 
 
         [HttpPost ( "registerCliente")]
-        public async Task<ActionResult<Cliente>> registerCliente(ClienteCreateDto data) 
+        public async Task<ActionResult<Cliente>> registerCliente([FromBody] ClienteCreateDto data) 
         {
             using var transaction = await _context.Database.BeginTransactionAsync();
 
@@ -173,6 +174,145 @@ namespace API_PROJECT_BEAUTY.Controllers
                 .CountAsync(u => u.FechaRegistro.Date == hoy && u.IdRol == 4);
 
             return Ok(conteo);
+        }
+
+        // ============================================================
+        // MI CUENTA (perfil propio, siempre resuelto desde el JWT)
+        // ============================================================
+
+        // Auxiliar: identifica al usuario LOGUEADO a partir del token.
+        // El id NUNCA llega del formulario, así nadie puede tocar cuentas ajenas.
+        private int? ObtenerIdUsuarioLogueado()
+        {
+            string? claimId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(claimId) || !int.TryParse(claimId, out int idUsuario))
+                return null;
+
+            return idUsuario;
+        }
+
+        // GET api/Cliente/MiPerfil
+        [Authorize]
+        [HttpGet("MiPerfil")]
+        public async Task<ActionResult<MiPerfilResponseDto>> MiPerfil()
+        {
+            int? idUsuario = ObtenerIdUsuarioLogueado();
+            if (idUsuario == null) return Unauthorized("No se pudo identificar al usuario");
+
+            try
+            {
+                var usuario = await _context.Usuarios
+                    .Include(u => u.IdClienteNavigation).ThenInclude(c => c!.IdTipoIdentificacionNavigation)
+                    .Include(u => u.IdRolNavigation)
+                    .FirstOrDefaultAsync(u => u.IdUsuario == idUsuario);
+
+                if (usuario == null) return NotFound(new { mensaje = "Usuario no encontrado" });
+                if (usuario.IdClienteNavigation == null)
+                    return BadRequest(new { mensaje = "El usuario no tiene un cliente asociado" });
+
+                var cliente = usuario.IdClienteNavigation;
+
+                return Ok(new MiPerfilResponseDto
+                {
+                    IdCliente = cliente.IdCliente,
+                    Nombres = cliente.Nombres,
+                    Apellidos = cliente.Apellidos,
+                    Correo = cliente.Correo,
+                    Telefono = cliente.Telefono,
+                    IdTipoIdentificacion = cliente.IdTipoIdentificacion,
+                    TipoIdentificacionNombre = cliente.IdTipoIdentificacionNavigation?.Nombre ?? "",
+                    NumeroIdentificacion = cliente.NumeroIdentificacion,
+                    IdUsuario = usuario.IdUsuario,
+                    Usuario = usuario.Nombre,
+                    FechaRegistro = usuario.FechaRegistro,
+                    IdRol = usuario.IdRol,
+                    RolNombre = usuario.IdRolNavigation?.Nombre ?? ""
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { mensaje = "Error al obtener tu perfil", error = ex.Message });
+            }
+        }
+
+        // PUT api/Cliente/ActualizarMiPerfil
+        [Authorize]
+        [HttpPut("ActualizarMiPerfil")]
+        public async Task<ActionResult> ActualizarMiPerfil([FromBody] MiPerfilUpdateDto data)
+        {
+            int? idUsuario = ObtenerIdUsuarioLogueado();
+            if (idUsuario == null) return Unauthorized("No se pudo identificar al usuario");
+
+            try
+            {
+                var usuario = await _context.Usuarios
+                    .Include(u => u.IdClienteNavigation)
+                    .FirstOrDefaultAsync(u => u.IdUsuario == idUsuario);
+
+                if (usuario?.IdClienteNavigation == null)
+                    return BadRequest(new { mensaje = "El usuario no tiene un cliente asociado" });
+
+                var cliente = usuario.IdClienteNavigation;
+
+                // El correo es único: si lo cambian, validamos que nadie más lo use
+                if (!string.IsNullOrWhiteSpace(data.Correo) && data.Correo != cliente.Correo)
+                {
+                    bool correoExiste = await _context.Clientes
+                        .AnyAsync(c => c.Correo == data.Correo && c.IdCliente != cliente.IdCliente);
+
+                    if (correoExiste)
+                        return BadRequest(new { mensaje = "Ese correo ya está registrado en otra cuenta" });
+                }
+
+                // Solo se actualizan los campos que lleguen con valor
+                if (!string.IsNullOrWhiteSpace(data.Nombres)) cliente.Nombres = data.Nombres;
+                if (!string.IsNullOrWhiteSpace(data.Apellidos)) cliente.Apellidos = data.Apellidos;
+                if (!string.IsNullOrWhiteSpace(data.Correo)) cliente.Correo = data.Correo;
+                if (data.Telefono != null) cliente.Telefono = data.Telefono;
+
+                await _context.SaveChangesAsync();
+
+                return Ok(new { mensaje = "Perfil actualizado correctamente" });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { mensaje = "Error al actualizar el perfil", error = ex.Message });
+            }
+        }
+
+        // PUT api/Cliente/CambiarPassword
+        [Authorize]
+        [HttpPut("CambiarPassword")]
+        public async Task<ActionResult> CambiarPassword([FromBody] CambiarPasswordDto data)
+        {
+            int? idUsuario = ObtenerIdUsuarioLogueado();
+            if (idUsuario == null) return Unauthorized("No se pudo identificar al usuario");
+
+            if (string.IsNullOrWhiteSpace(data.ContrasenaActual) || string.IsNullOrWhiteSpace(data.ContrasenaNueva))
+                return BadRequest(new { mensaje = "Debes escribir la contraseña actual y la nueva" });
+
+            if (data.ContrasenaNueva.Length < 6)
+                return BadRequest(new { mensaje = "La nueva contraseña debe tener al menos 6 caracteres" });
+
+            try
+            {
+                var usuario = await _context.Usuarios.FindAsync(idUsuario);
+                if (usuario == null) return NotFound(new { mensaje = "Usuario no encontrado" });
+
+                // Comparamos la contraseña actual con la guardada (misma encriptación del login)
+                string actualEncriptada = CryptoService.Encrypt(data.ContrasenaActual);
+                if (usuario.Contrasena != actualEncriptada)
+                    return BadRequest(new { mensaje = "La contraseña actual es incorrecta" });
+
+                usuario.Contrasena = CryptoService.Encrypt(data.ContrasenaNueva);
+                await _context.SaveChangesAsync();
+
+                return Ok(new { mensaje = "Contraseña actualizada correctamente" });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { mensaje = "Error al cambiar la contraseña", error = ex.Message });
+            }
         }
 
     }

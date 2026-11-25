@@ -170,6 +170,8 @@ namespace API_PROJECT_BEAUTY.Controllers
                 await _context.Usuario_Token.AddAsync(refreshToken);
                 await _context.SaveChangesAsync();
 
+                await transaction.CommitAsync(); // ✅ Confirmamos la transacción para que el refresh token SÍ quede guardado en la BD
+
                 //10. ENVIAMOS EL ACCESS TOKEN AL USUARIO 
                 var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
 

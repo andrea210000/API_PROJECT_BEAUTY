@@ -34,7 +34,6 @@ mvcBuilder.AddJsonOptions(options =>
 });
 
 builder.Services.AddSwaggerGen(); // Add Swagger for API documentation
-builder.Services.AddSwaggerGen(); // Add Swagger for API documentation
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi(); // Add OpenAPI support for API documentation
 

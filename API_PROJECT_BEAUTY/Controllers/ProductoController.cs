@@ -20,7 +20,7 @@ namespace API_PROJECT_BEAUTY.Controllers
             _context = context;// Asigna el contexto de la base de datos a la variable privada _context para su uso en los métodos del controlador.
         }
         [HttpPost ("InsertarProductos")]
-        public async Task<ActionResult> InsertarProductos(ProductoCreateDto data)
+        public async Task<ActionResult> InsertarProductos([FromBody] ProductoCreateDto data)
         {
             using var transaction = await _context.Database.BeginTransactionAsync(); // Inicia una transacción de base de datos de forma asíncrona, lo que permite agrupar varias operaciones de base de datos en una sola unidad de trabajo. Si alguna operación falla, se puede revertir toda la transacción para mantener la integridad de los datos.
 
@@ -93,7 +93,7 @@ namespace API_PROJECT_BEAUTY.Controllers
             }
         [HttpPut ("ActualizarProducto")]
 
-        public async Task<ActionResult> ActualizarProducto (int idProducto, ProductoUpdateDto data) 
+        public async Task<ActionResult> ActualizarProducto (int idProducto, [FromBody] ProductoUpdateDto data) 
         {
 
             using var transaction = await _context.Database.BeginTransactionAsync();
