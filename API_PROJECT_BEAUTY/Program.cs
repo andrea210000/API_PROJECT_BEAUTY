@@ -2,6 +2,7 @@ using API_PROJECT_BEAUTY.Models;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using MySqlConnector;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -17,13 +18,29 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Get the connection string from appsettings.json
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 
-// Add services to the container.
-// Configure Entity Framework Core to use MySQL
+if (string.IsNullOrWhiteSpace(connectionString))
+{
+    throw new InvalidOperationException("Falta ConnectionStrings:DefaultConnection en appsettings.json.");
+}
+
+var connectionBuilder = new MySqlConnectionStringBuilder(connectionString)
+{
+    Pooling = true,
+    MinimumPoolSize = 1,
+    MaximumPoolSize = 1,
+    ConnectionIdleTimeout = 180,
+    Keepalive = 60,
+    ApplicationName = "BeautySpaApi"
+};
+
+connectionString = connectionBuilder.ConnectionString;
+var serverVersionText = builder.Configuration["Database:ServerVersion"] ?? "8.0.45-mysql";
+var serverVersion = ServerVersion.Parse(serverVersionText);
+
 builder.Services.AddDbContext<ProjectBeautyContext>(options =>
-    options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)));
+    options.UseMySql(connectionString, serverVersion));
 
 builder.Services.AddControllers();
 var mvcBuilder = builder.Services.AddControllers();
@@ -64,6 +81,13 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddAuthorization(); // Registrar servicios de autorización
 
 var app = builder.Build(); // Build the application
+
+using (var scope = app.Services.CreateScope())
+{
+    var context = scope.ServiceProvider.GetRequiredService<ProjectBeautyContext>();
+    await context.Database.OpenConnectionAsync();
+    await context.Database.CloseConnectionAsync();
+}
 
 app.UseHttpsRedirection(); // Redirect HTTP requests to HTTPS
 

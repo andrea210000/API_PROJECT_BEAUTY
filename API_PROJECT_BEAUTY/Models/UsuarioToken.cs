@@ -4,7 +4,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace API_PROJECT_BEAUTY.Models
 {
-    [Table("Usuario_Token")] // Asegúrate de que coincida con el nombre exacto de la tabla en MySQL
+    [Table("usuario_token")] // Asegúrate de que coincida con el nombre exacto de la tabla en MySQL
     public class UsuarioToken
     {
         [Key]
