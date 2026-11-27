@@ -30,6 +30,7 @@ namespace API_PROJECT_BEAUTY.Controllers
         [HttpPost("Register")]
         public async Task<IActionResult> Register([FromBody] RegisterRequestDto request)
         {
+            string contrasenaEncriptada = CryptoService.Encrypt(request.Contrasena);
             using var transaction = await _context.Database.BeginTransactionAsync();// se deja como global para que abarque todo el proceso de registro, tanto el registro del cliente como el registro del usuario, esto con el fin de garantizar la integridad de los datos
             try
             {
@@ -52,9 +53,6 @@ namespace API_PROJECT_BEAUTY.Controllers
 
 
                 //2. REGISTRAR EL USUARIO ASOCIADO AL CLIENTE
-                // Encriptar la contraseña antes de guardarla en la base de datos
-                string contrasenaEncriptada = CryptoService.Encrypt(request.Contrasena);
-
                 // Creamos un nuevo usuario con la información recibida en el request, y asociamos el id del cliente registrado anteriormente
                 Usuario nuevoUsuario = new Usuario
                 {
@@ -93,8 +91,6 @@ namespace API_PROJECT_BEAUTY.Controllers
         [HttpPost("Login")]
         public async Task<IActionResult> Login([FromBody] LoginRequestDto request)
         {
-            using var transaction = await _context.Database.BeginTransactionAsync(); //se deja como global para que abarque todo el proceso de login, tanto la validación del usuario como la generación de los tokens, esto con el fin de garantizar la integridad de los datos y evitar problemas en caso de que algo falle durante el proceso de login.
-
             try
             {
                 //1. VALIDAR DATOS DE ENTRADA CONTRA BD
@@ -170,8 +166,6 @@ namespace API_PROJECT_BEAUTY.Controllers
                 await _context.Usuario_Token.AddAsync(refreshToken);
                 await _context.SaveChangesAsync();
 
-                await transaction.CommitAsync(); // ✅ Confirmamos la transacción para que el refresh token SÍ quede guardado en la BD
-
                 //10. ENVIAMOS EL ACCESS TOKEN AL USUARIO 
                 var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
 
@@ -186,7 +180,6 @@ namespace API_PROJECT_BEAUTY.Controllers
             }
             catch (Exception ex)
             {
-                await transaction.RollbackAsync(); //EN CASO DE FALLE ALGO, NO GUARDARA NADA Y ENVIARA DE VUELTA LA INFO INGRESADA
                 return StatusCode(500, new { mensaje = "Error al iniciar sesión", error = ex.Message }); //SE NOTIFICA ERROR AL INICIAR SESION
 
 
